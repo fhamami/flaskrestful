@@ -14,11 +14,15 @@ class User(db.Model):
     email = db.Column(db.String(256), nullable=False, unique=True)
     password = db.Column(db.String(256), nullable=False)
     bucketlists = db.relationship('Bucketlist', order_by='Bucketlist.id', cascade="all, delete-orphan")
+    registered_on = db.Column(db.DateTime, nullable=False)
+    admin = db.Column(db.Boolean, nullable=False, default=False)
 
-    def __init__(self, email, password):
+    def __init__(self, email, password, admin=False):
         """Initialize the user with an email and a password."""
         self.email = email
         self.password = Bcrypt().generate_password_hash(password).decode()
+        self.registered_on = datetime.now()
+        self.admin = admin
 
     def password_is_valid(self, password):
         """

@@ -15,7 +15,7 @@ class BucketlistTestCase(unittest.TestCase):
         # binds the app to the current context
         with self.app.app_context():
             # create all tables
-            db.session.close()
+            # db.session.close()
             db.drop_all()
             db.create_all()
 

@@ -3,6 +3,7 @@ from . import auth_blueprint
 from flask.views import MethodView
 from flask import Blueprint, make_response, request, jsonify
 from app.models import User
+from app import db
 
 class RegistrationView(MethodView):
     """ This class register a new user """
@@ -80,9 +81,62 @@ class LoginView(MethodView):
             # Return a server error using the HTTP Error Code 500 (Internal Server Error)
             return make_response(jsonify(response)), 500
 
+class UserView(MethodView):
+    """ User resource """
+
+    def get(self):
+        # get the auth token
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            auth_token = auth_header.split(" ")[1]
+        else:
+            auth_token = ''
+        if auth_token:
+            resp = User.decode_token(auth_token)
+            if not isinstance(resp, str):
+                user = User.query.filter_by(id=resp).first()
+                responseObject = {
+                    'status': 'success',
+                    'data': {
+                        'user_id': user.id,
+                        'email': user.email,
+                        'admin': user.admin,
+                        'registered_on': user.registered_on
+                    }
+                }
+                return make_response(jsonify(responseObject)), 200
+            responseObject = {
+                'status': 'fail',
+                'message': resp
+            }
+            return make_response(jsonify(responseObject)), 401
+        else:
+            responseObject = {
+                'status': 'fail',
+                'message': 'provide a valid auth token'
+            }
+            return make_response(jsonify(responseObject)), 401
+
+class BlacklistToken(db.Model):
+    """ Token model for storing JWT tokens """
+    __tablename__ = 'blacklist_tokens'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    token = db.Column(db.String(500), unique=True, nullable=False)
+    blacklisted_on = db.Column(db.DateTime, nullable=False)
+
+    def __init__(self, token):
+        self.token = token
+        self.blacklisted_on = datetime.now()
+
+    def __repr__(self):
+        return '<id: token: {}'.format(self.token)
+
+
 # Define the API resource
 registration_view = RegistrationView.as_view('registration_view')
 login_view = LoginView.as_view('login_view')
+user_view = UserView.as_view('user_view')
 
 # Define the rule for the registration url --->  /auth/register
 # Then add the rule to the blueprint
@@ -97,4 +151,10 @@ auth_blueprint.add_url_rule(
     '/auth/login',
     view_func=login_view,
     methods=['POST']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/user',
+    view_func=user_view,
+    methods=['GET']
 )
