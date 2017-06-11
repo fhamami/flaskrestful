@@ -65,6 +65,12 @@ class User(db.Model):
         try:
             # try to decode the token using our SECRET variable
             payload = jwt.decode(token, current_app.config.get('SECRET_KEY'))
+            # blacklist token check
+            is_blacklist_token = BlacklistToken.check_blacklist(token)
+            if is_blacklist_token:
+                return 'Token blacklist. Please log in again'
+            else:
+                return payload['sub']
             return payload['sub']
         except jwt.ExpiredSignatureError:
             # the token is expired, return an error string
@@ -72,6 +78,30 @@ class User(db.Model):
         except jwt.InvalidTokenError:
             # the token is invalid, return an error string
             return "Invalid token. Please register or login"
+
+class BlacklistToken(db.Model):
+    """ Token model for storing JWT tokens """
+    __tablename__ = 'blacklist_tokens'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    token = db.Column(db.String(500), unique=True, nullable=False)
+    blacklisted_on = db.Column(db.DateTime, nullable=False)
+
+    def __init__(self, token):
+        self.token = token
+        self.blacklisted_on = datetime.now()
+
+    def __repr__(self):
+        return '<id: token: {}'.format(self.token)
+
+    @staticmethod
+    def check_blacklist(token):
+        # check whether auth token has been blacklisted
+        res = BlacklistToken.query.filter_by(token=str(token)).first()
+        if res:
+            return True
+        else:
+            return False
 
 class Bucketlist(db.Model):
     """This class defines the bucketlist table."""

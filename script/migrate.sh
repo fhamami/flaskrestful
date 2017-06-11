@@ -1,2 +1,4 @@
 #!/bin/sh
-python manage.py db migrate
+echo "Please enter message: "
+read msg
+python manage.py db migrate -m $msg

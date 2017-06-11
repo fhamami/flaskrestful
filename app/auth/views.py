@@ -2,8 +2,9 @@ from . import auth_blueprint
 
 from flask.views import MethodView
 from flask import Blueprint, make_response, request, jsonify
-from app.models import User
+from app.models import User, BlacklistToken
 from app import db
+from datetime import datetime
 
 class RegistrationView(MethodView):
     """ This class register a new user """
@@ -25,7 +26,7 @@ class RegistrationView(MethodView):
                 user.save()
 
                 response = {
-                    'message': 'you registered succcessfully. please log in'
+                    'message': 'You registered successfully. please log in'
                 }
                 # return a response notifying the user that they registered successfully
                 # 201 Created, The request has been fulfilled, resulting in the creation of a new resource
@@ -117,26 +118,53 @@ class UserView(MethodView):
             }
             return make_response(jsonify(responseObject)), 401
 
-class BlacklistToken(db.Model):
-    """ Token model for storing JWT tokens """
-    __tablename__ = 'blacklist_tokens'
-
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    token = db.Column(db.String(500), unique=True, nullable=False)
-    blacklisted_on = db.Column(db.DateTime, nullable=False)
-
-    def __init__(self, token):
-        self.token = token
-        self.blacklisted_on = datetime.now()
-
-    def __repr__(self):
-        return '<id: token: {}'.format(self.token)
-
+class LogoutView(MethodView):
+    """ logout resource """
+    def post(self):
+        # get auth token
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            auth_token = auth_header.split(" ")[1]
+        else:
+            auth_token = ''
+        if auth_token:
+            resp = User.decode_token(auth_token)
+            if not isinstance(resp, str):
+                # mark the token as blacklisted
+                blacklist_token = BlacklistToken(token=auth_token)
+                try:
+                    # insert the token
+                    db.session.add(blacklist_token)
+                    db.session.commit()
+                    responseObject = {
+                        'status': 'success',
+                        'message': 'successfully logged out'
+                    }
+                    return make_response(jsonify(responseObject)), 200
+                except Exception as e:
+                    responseObject = {
+                        'status': 'fail',
+                        'message': e
+                    }
+                    return make_response(jsonify(responseObject)), 200
+            else:
+                responseObject = {
+                    'status': 'fail',
+                    'message': resp
+                }
+                return make_response(jsonify(responseObject)), 401
+        else:
+            responseObject = {
+                'status': 'fail',
+                'message': 'Provide a valid auth token'
+            }
+            return make_response(jsonify(responseObject)), 403
 
 # Define the API resource
 registration_view = RegistrationView.as_view('registration_view')
 login_view = LoginView.as_view('login_view')
 user_view = UserView.as_view('user_view')
+logout_view = LogoutView.as_view('logout_view')
 
 # Define the rule for the registration url --->  /auth/register
 # Then add the rule to the blueprint
@@ -154,7 +182,13 @@ auth_blueprint.add_url_rule(
 )
 
 auth_blueprint.add_url_rule(
-    '/auth/user',
+    '/auth/status',
     view_func=user_view,
     methods=['GET']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/logout',
+    view_func=logout_view,
+    methods=['POST']
 )
