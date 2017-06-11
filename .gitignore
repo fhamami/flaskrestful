@@ -1,6 +1,6 @@
 *.pyc
 .env
-gitCommand.py
 readthedoc.md
 
+git/*
 venv/*
